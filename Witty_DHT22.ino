@@ -1,11 +1,27 @@
 #include <Adafruit_Sensor.h>
+#include <ArduinoJson.h>
 #include <DHT.h>
 #include <DHT_U.h>
+#include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 
-#define LED  D2  //Define connection of LED
+// needed to avoid link error on ram check
+extern "C"
+{
+#include "user_interface.h"
+}
+ADC_MODE(ADC_VCC);
+
+WiFiServer server(80);
+WiFiClient client;
+const char* ssid = "Vikas_PC_Network";
+const char* password = "9815610902";
+
+float pfDew, pfHum, pfTemp, pfVcc;
+
+//#define LED  D4  //Define connection of LED
 
 // HC-SR04 GPIO mapping
 #define echoPin D7 // Echo Pin i.e the pingPin 
@@ -35,7 +51,6 @@ uint32_t delayMS;
 #define YPOS 1
 #define DELTAY 2
 
-
 #define LOGO16_GLCD_HEIGHT 16
 #define LOGO16_GLCD_WIDTH  16
 
@@ -57,7 +72,6 @@ static const unsigned char PROGMEM logo16_glcd_bmp[] =
   B01110000, B01110000,
   B00000000, B00110000
 };
-
 
 float t ;
 float h ;
@@ -93,17 +107,76 @@ unsigned long getDistance() {
   return distance = duration / 58.2;
 }
 
+bool readRequest(WiFiClient& client) {
+  bool currentLineIsBlank = true;
+  while (client.connected()) {
+    if (client.available()) {
+      char c = client.read();
+      if (c == '\n' && currentLineIsBlank) {
+        return true;
+      } else if (c == '\n') {
+        currentLineIsBlank = true;
+      } else if (c != '\r') {
+        currentLineIsBlank = false;
+      }
+    }
+  }
+  return false;
+}
+
+JsonObject& prepareResponse(JsonBuffer& jsonBuffer) {
+  JsonObject& root = jsonBuffer.createObject();
+  JsonArray& tempValues = root.createNestedArray("temperature");
+  tempValues.add(t);
+  JsonArray& humiValues = root.createNestedArray("humidity");
+  humiValues.add(h);
+  JsonArray& dewpValues = root.createNestedArray("dewpoint");
+  dewpValues.add(pfDew);
+  JsonArray& EsPvValues = root.createNestedArray("Systemv");
+  EsPvValues.add(pfVcc / 1000, 3);
+  return root;
+}
+
+void writeResponse(WiFiClient& client, JsonObject& json) {
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: application/json");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println("Connection: close");
+  client.println();
+
+  json.prettyPrintTo(client);
+}
+
+
 void setup() {
   Serial.begin(115200);
-  pinMode(LED, OUTPUT);
+  //  pinMode(LED, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
+
+  // inital connect
+  //  WiFi.mode(WIFI_STA);
+  //  delay(1000);
+  // config static IP
+  IPAddress ip(192, 168, 1, 89);
+  IPAddress gateway(192, 168, 1, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress dns(192, 168, 1, 1);
+  WiFi.config(ip, dns, gateway, subnet);
+  // Connect to WiFi network
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+  }
+  server.begin();
+
   dht.begin();
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
   dht.humidity().getSensor(&sensor);
   // Set delay between sensor readings based on sensor details.
-  delayMS = sensor.min_delay / 1000;
+  delayMS = sensor.min_delay / 800;
   pinMode (DHTPIN, OUTPUT);
   /// initialize and clear display
   display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
@@ -133,7 +206,7 @@ void setup() {
 
   // invert the display
   display.invertDisplay(true);
-  delay(1000);
+  delay(500);
   display.invertDisplay(false);
   delay(1000);
   display.display();
@@ -142,17 +215,33 @@ void setup() {
 
 void loop() {
   distance = getDistance();
-  if (distance <= 20) {
-    digitalWrite(LED, HIGH);
+  WiFiClient client = server.available();
+  if (client) {
+    bool success = readRequest(client);
+    if (success) {
+      delay(1000);
+
+      //      delay(500);
+      pfVcc = ESP.getVcc();
+      StaticJsonBuffer<500> jsonBuffer;
+      JsonObject& json = prepareResponse(jsonBuffer);
+      writeResponse(client, json);
+    }
+    delay(1);
+    client.stop();
   }
-  else {
-    digitalWrite(LED, LOW);
-  }
+
+  distance = getDistance();
+  //  if (distance <= 20) {
+  //    digitalWrite(LED, HIGH);
+  //  }
+  //  else {
+  //    digitalWrite(LED, LOW);
+  //  }
   Serial.println(distance);
-  //Delay 50ms before next reading.
   // Delay between measurements.
-  delay(delayMS + 50);
-  digitalWrite(LED, HIGH);
+  delay(delayMS);
+  //  digitalWrite(LED, HIGH);
   // Get temperature event and print its value.
   sensors_event_t event;
   dht.temperature().getEvent(&event);
@@ -179,33 +268,38 @@ void loop() {
     Serial.println("%");
   }
 
+  float a = 17.67;
+  float b = 243.5;
+  float alpha = (a * t) / (b + t) + log(h / 100);
+  pfDew = (b * alpha) / (a - alpha);
+
   display.clearDisplay();
 
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, 1);
-  display.print("Showing Temperature");
+  display.print("Temperature/Humidity");
   // display Temperature
-  display.setTextSize(2);
+  display.setTextSize(4);
   display.setTextColor(WHITE);
   display.setCursor(0, 16);
-  display.print("T : ");
+  //  display.print("T:");
   display.print(t);
   display.setTextSize(1);
   display.print((char)247);
-  display.setTextSize(2);
-  display.print("C");
-  display.setCursor(0, 33);
-  display.print("H : ");
+  //  display.setTextSize(2);
+  //  display.print("C");
+  display.setCursor(0, 50);
+  display.print("Humidity : ");
   display.print(h);
-  display.setTextSize(1);
+  //  display.setTextSize(2);
   display.print(" %");
-  display.setTextSize(2);
-  display.setCursor(0, 48);
-  display.print("Dist:");
-  display.print(distance);
-  //  display.setTextSize(1);
-  display.print("cm");
+  //  display.setTextSize(2);
+  //  display.setCursor(0, 48);
+  //  display.print("Dist:");
+  //  display.print(distance);
+  //  //  display.setTextSize(1);
+  //  display.print("cm");
   // update display with all of the above graphics
   display.display();
 
@@ -235,7 +329,6 @@ void testdrawbitmap(const uint8_t *bitmap, uint8_t w, uint8_t h) {
       display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, WHITE);
     }
     display.display();
-    delay(200);
 
     // then erase it + move it
     for (uint8_t f = 0; f < NUMFLAKES; f++) {
