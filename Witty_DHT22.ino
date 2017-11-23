@@ -2,10 +2,15 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 #include <DHT_U.h>
+#include "webpage.h"
+#include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
+
+const char* host = "wittycloud";
 
 // needed to avoid link error on ram check
 extern "C"
@@ -14,7 +19,9 @@ extern "C"
 }
 ADC_MODE(ADC_VCC);
 
-WiFiServer server(80);
+ESP8266WebServer server (80);
+//WiFiServer server(91220);
+//WiFiServer server(80);
 WiFiClient client;
 const char* ssid = "Vikas_PC_Network";
 const char* password = "9815610902";
@@ -132,21 +139,42 @@ JsonObject& prepareResponse(JsonBuffer& jsonBuffer) {
   humiValues.add(h);
   JsonArray& dewpValues = root.createNestedArray("dewpoint");
   dewpValues.add(pfDew);
-  JsonArray& EsPvValues = root.createNestedArray("Systemv");
+  JsonArray& EsPvValues = root.createNestedArray("systemv");
   EsPvValues.add(pfVcc / 1000, 3);
   return root;
 }
 
-void writeResponse(WiFiClient& client, JsonObject& json) {
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: application/json");
-  client.println("Access-Control-Allow-Origin: *");
-  client.println("Connection: close");
-  client.println();
-
-  json.prettyPrintTo(client);
+void writeResponse(WiFiClient& clnt, JsonObject& json) {
+  clnt.println("HTTP/1.1 200 OK");
+  clnt.println("Content-Type: application/json");
+  clnt.println("Access-Control-Allow-Origin: *");
+  clnt.println("Connection: close");
+  clnt.println();
+  json.prettyPrintTo(clnt);
 }
 
+
+String createJsonResponse() {
+  StaticJsonBuffer<500> jsonBuffer;
+
+  JsonObject &root = jsonBuffer.createObject();
+  JsonArray &tempValues = root.createNestedArray("temperature");
+  tempValues.add(t);
+  JsonArray &humiValues = root.createNestedArray("humidity");
+  humiValues.add(h);
+  JsonArray &dewpValues = root.createNestedArray("dewpoint");
+  dewpValues.add(pfDew);
+  JsonArray &EsPvValues = root.createNestedArray("systemv");
+  EsPvValues.add(pfVcc / 1000, 3);
+
+  String json;
+  root.prettyPrintTo(json);
+  return json;
+}
+
+void outputJson() {
+  server.send(200, "text/json", createJsonResponse());
+}
 
 void setup() {
   Serial.begin(115200);
@@ -164,12 +192,29 @@ void setup() {
   IPAddress dns(192, 168, 1, 1);
   WiFi.config(ip, dns, gateway, subnet);
   // Connect to WiFi network
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password); // WiFi.begin() requires 2 strings as arguments.
+  // You need to pass the SSID and the password of the Access point you wish to
+  // connect.You need to pass the arguments as character arrays or strings with a lower case s.
+
+
+  // The status function in the WiFi class, doesn’t take any arguments but it returns
+  // stuff depending on the status of the network that you’re connected to.
+  // Usually, first, you call WiFi.begin, you pass the SSID and the password because you’re
+  // trying to establish a connection with the network. Then, what you do is you wait in a loop
+  // until WiFi.status returns the value WL_CONNECTED.
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
   }
+
+  if ( MDNS.begin ( host ) ) {
+    Serial.println ( "MDNS responder started" );
+  }
+  MDNS.addService("http", "tcp", 80);
+  server.on ( "/", handleRoot );
+  server.on("/json", outputJson);
   server.begin();
+  Serial.println("HTTP server started");
 
   dht.begin();
   sensor_t sensor;
@@ -206,30 +251,31 @@ void setup() {
 
   // invert the display
   display.invertDisplay(true);
-  delay(500);
+  delay(400);
   display.invertDisplay(false);
-  delay(1000);
+  delay(800);
   display.display();
   display.clearDisplay();
 }
 
+
+void handleRoot() {
+  const int nsize = 2500;
+  char temp[nsize];
+  snprintf ( temp, nsize,
+             "%s\n\
+  </\div></body>\n\
+</html>", webpage::html
+           );
+
+  server.send ( 200, "text/html", temp );
+}
+
+
 void loop() {
   distance = getDistance();
-  WiFiClient client = server.available();
-  if (client) {
-    bool success = readRequest(client);
-    if (success) {
-      delay(1000);
+  pfVcc = ESP.getVcc();
 
-      //      delay(500);
-      pfVcc = ESP.getVcc();
-      StaticJsonBuffer<500> jsonBuffer;
-      JsonObject& json = prepareResponse(jsonBuffer);
-      writeResponse(client, json);
-    }
-    delay(1);
-    client.stop();
-  }
 
   distance = getDistance();
   //  if (distance <= 20) {
@@ -272,7 +318,7 @@ void loop() {
   float b = 243.5;
   float alpha = (a * t) / (b + t) + log(h / 100);
   pfDew = (b * alpha) / (a - alpha);
-
+  server.handleClient();
   display.clearDisplay();
 
   display.setTextSize(1);
