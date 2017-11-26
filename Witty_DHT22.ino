@@ -13,6 +13,7 @@
 const char* host = "wittycloud";
 
 // needed to avoid link error on ram check
+// include is a plain C, not C++
 extern "C"
 {
 #include "user_interface.h"
@@ -20,13 +21,12 @@ extern "C"
 ADC_MODE(ADC_VCC);
 
 ESP8266WebServer server (80);
-//WiFiServer server(91220);
-//WiFiServer server(80);
+
 WiFiClient client;
 const char* ssid = "Vikas_PC_Network";
 const char* password = "9815610902";
 
-float pfDew, pfHum, pfTemp, pfVcc;
+float hic, pfDew, pfHum, pfTemp, pfVcc;
 
 //#define LED  D4  //Define connection of LED
 
@@ -34,6 +34,7 @@ float pfDew, pfHum, pfTemp, pfVcc;
 #define echoPin D7 // Echo Pin i.e the pingPin 
 #define trigPin D6 // Trigger Pin i.e. the inPin
 
+#define LDR_PIN      A0 // LDR 
 long duration, distance; // Duration used to calculate distance
 
 // OLED display TWI address
@@ -50,6 +51,7 @@ Adafruit_SSD1306 display(-1);  // -1 = no reset pin
 #define DHTTYPE DHT22
 
 DHT_Unified dht(DHTPIN, DHTTYPE);
+DHT dhthi(DHTPIN, DHTTYPE);
 
 uint32_t delayMS;
 
@@ -114,43 +116,20 @@ unsigned long getDistance() {
   return distance = duration / 58.2;
 }
 
-bool readRequest(WiFiClient& client) {
-  bool currentLineIsBlank = true;
-  while (client.connected()) {
-    if (client.available()) {
-      char c = client.read();
-      if (c == '\n' && currentLineIsBlank) {
-        return true;
-      } else if (c == '\n') {
-        currentLineIsBlank = true;
-      } else if (c != '\r') {
-        currentLineIsBlank = false;
-      }
-    }
+void handleNotFound() {
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " " + server.argName ( i ) + ": " + server.arg ( i ) + "\n";
   }
-  return false;
-}
-
-JsonObject& prepareResponse(JsonBuffer& jsonBuffer) {
-  JsonObject& root = jsonBuffer.createObject();
-  JsonArray& tempValues = root.createNestedArray("temperature");
-  tempValues.add(t);
-  JsonArray& humiValues = root.createNestedArray("humidity");
-  humiValues.add(h);
-  JsonArray& dewpValues = root.createNestedArray("dewpoint");
-  dewpValues.add(pfDew);
-  JsonArray& EsPvValues = root.createNestedArray("systemv");
-  EsPvValues.add(pfVcc / 1000, 3);
-  return root;
-}
-
-void writeResponse(WiFiClient& clnt, JsonObject& json) {
-  clnt.println("HTTP/1.1 200 OK");
-  clnt.println("Content-Type: application/json");
-  clnt.println("Access-Control-Allow-Origin: *");
-  clnt.println("Connection: close");
-  clnt.println();
-  json.prettyPrintTo(clnt);
+  server.send ( 404, "text/plain", message );
 }
 
 
@@ -164,6 +143,8 @@ String createJsonResponse() {
   humiValues.add(h);
   JsonArray &dewpValues = root.createNestedArray("dewpoint");
   dewpValues.add(pfDew);
+  JsonArray &heindValues = root.createNestedArray("heatindex");
+  heindValues.add(hic);
   JsonArray &EsPvValues = root.createNestedArray("systemv");
   EsPvValues.add(pfVcc / 1000, 3);
 
@@ -181,16 +162,21 @@ void setup() {
   //  pinMode(LED, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
+  pinMode(LDR_PIN, INPUT);
 
   // inital connect
   //  WiFi.mode(WIFI_STA);
   //  delay(1000);
   // config static IP
-  IPAddress ip(192, 168, 1, 89);
+  IPAddress myIp(192, 168, 1, 89);
   IPAddress gateway(192, 168, 1, 1);
   IPAddress subnet(255, 255, 255, 0);
   IPAddress dns(192, 168, 1, 1);
-  WiFi.config(ip, dns, gateway, subnet);
+  WiFi.config(myIp, dns, gateway, subnet);
+  Serial.print("AP IP address: ");
+  Serial.println(myIp);
+  Serial.print("Mac Address:: ");
+  Serial.println(WiFi.macAddress());
   // Connect to WiFi network
   WiFi.begin(ssid, password); // WiFi.begin() requires 2 strings as arguments.
   // You need to pass the SSID and the password of the Access point you wish to
@@ -212,6 +198,7 @@ void setup() {
   }
   MDNS.addService("http", "tcp", 80);
   server.on ( "/", handleRoot );
+  server.onNotFound (handleNotFound);
   server.on("/json", outputJson);
   server.begin();
   Serial.println("HTTP server started");
@@ -260,7 +247,7 @@ void setup() {
 
 
 void handleRoot() {
-  const int nsize = 2500;
+  const int nsize = 3000;
   char temp[nsize];
   snprintf ( temp, nsize,
              "%s\n\
@@ -275,15 +262,8 @@ void handleRoot() {
 void loop() {
   distance = getDistance();
   pfVcc = ESP.getVcc();
-
-
   distance = getDistance();
-  //  if (distance <= 20) {
-  //    digitalWrite(LED, HIGH);
-  //  }
-  //  else {
-  //    digitalWrite(LED, LOW);
-  //  }
+
   Serial.println(distance);
   // Delay between measurements.
   delay(delayMS);
@@ -318,7 +298,11 @@ void loop() {
   float b = 243.5;
   float alpha = (a * t) / (b + t) + log(h / 100);
   pfDew = (b * alpha) / (a - alpha);
+  // Compute heat index in Celsius (isFahreheit = false)
+  hic = dhthi.computeHeatIndex(t, h, false);
+  Serial.println(analogRead(LDR_PIN));
   server.handleClient();
+//  client_status();
   display.clearDisplay();
 
   display.setTextSize(1);
@@ -350,6 +334,49 @@ void loop() {
   display.display();
 
 }
+
+void client_status() {
+
+  unsigned char number_client;
+  struct station_info *stat_info;
+
+  struct ip_addr *IPaddress;
+  IPAddress address;
+  int i = 1;
+
+  number_client = wifi_softap_get_station_num(); // Count of stations which are connected to ESP8266 soft-AP
+  stat_info = wifi_softap_get_station_info();
+
+  Serial.print(" Total connected_client are = ");
+  Serial.println(number_client);
+
+  while (stat_info != NULL) {
+
+    IPaddress = &stat_info->ip;
+    address = IPaddress->addr;
+
+    Serial.print("client= ");
+
+    Serial.print(i);
+    Serial.print(" ip adress is = ");
+    Serial.print((address));
+    Serial.print(" with mac adress is = ");
+
+    Serial.print(stat_info->bssid[0], HEX);
+    Serial.print(stat_info->bssid[1], HEX);
+    Serial.print(stat_info->bssid[2], HEX);
+    Serial.print(stat_info->bssid[3], HEX);
+    Serial.print(stat_info->bssid[4], HEX);
+    Serial.print(stat_info->bssid[5], HEX);
+
+    stat_info = STAILQ_NEXT(stat_info, next);
+    i++;
+    Serial.println();
+
+  }
+  delay(500);
+}
+
 
 void testdrawbitmap(const uint8_t *bitmap, uint8_t w, uint8_t h) {
   uint8_t icons[NUMFLAKES][3];
