@@ -47,8 +47,9 @@ Adafruit_SSD1306 display(-1);  // -1 = no reset pin
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
 
-#define DHTPIN D5
-#define DHTTYPE DHT22
+//#define DHTPIN D5
+#define DHTPIN 14
+#define DHTTYPE DHT11
 
 DHT_Unified dht(DHTPIN, DHTTYPE);
 DHT dhthi(DHTPIN, DHTTYPE);
@@ -197,8 +198,9 @@ void setup() {
     Serial.println ( "MDNS responder started" );
   }
   MDNS.addService("http", "tcp", 80);
-//  server.on ( "/", handleRoot );
+  MDNS.addService("ssh", "tcp", 22);
   server.on ( "/", []() { Serial.println("opened root page"); server.send( 200, "text/html", PAGE_Index ); });
+//  server.on ( "/user", []() { Serial.println("opened root page"); server.send( 200, "text/html", PAGE_Index ); });
   server.onNotFound (handleNotFound);
   server.on("/json", outputJson);
   server.begin();

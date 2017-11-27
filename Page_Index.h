@@ -15,6 +15,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
       body {background-color: darkgrey; height: 100%; margin-right: 50px; margin-left: 50px;}
     </style>
         <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.js'></script>
+
     <script type='text/javascript'>
         wuri='http://dataservice.accuweather.com/currentconditions/v1/2956111?apikey=4mMBpfdcAAmaMFXtwPvYK9qS9Wzq0md9';
         $.getJSON(wuri, function (json) {
@@ -26,16 +27,19 @@ const char PAGE_Index[] PROGMEM = R"=====(
     window.scrollTo(0, 1);
     fetchData();
     }
-    url = \document.location.href + 'json';
+    nurl = document.location.href;
+//    surl = nurl.split("/")[2] + '/json';
+    surl = window.location.origin + "/json";
   setInterval(function() {
   fetchData();
   }, 10000);
   function fetchData(){
   var xmlhttp = new XMLHttpRequest();
-  xmlhttp.open('GET', url, true);
+  xmlhttp.open('GET', surl, true);
   xmlhttp.onreadystatechange = function() {
       if (xmlhttp.readyState == 4) {
           if(xmlhttp.status == 200) {
+            console.log(xmlhttp.responseText);
               var obj = JSON.parse(xmlhttp.responseText);
               if (obj.temperature < 70){
         document.getElementById('temp').innerHTML = parseFloat(Math.round(obj.temperature * 100) / 100).toFixed(2) + '&deg;C';
@@ -51,7 +55,26 @@ const char PAGE_Index[] PROGMEM = R"=====(
     </script>
     </head>
     <body onload='startUp()'>
-    <div align='center'>Welcome to Sanjeev, Nitin and Krysto's room in Phillaur.</div>
+  
+    <div id="welMsg" align='center'>...</div>
+    <script type='text/javascript'>
+    function getUrlVars() {
+    var vars = {};
+    var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi,    
+    function(m,key,value) {
+      vars[key] = value;
+    });
+    return vars;
+    }
+
+    usr = getUrlVars()["user"];
+    if (!usr){
+      document.getElementById('welMsg').innerHTML = "Welcome to Sanjeev, Nitin and Krysto's room in Phillaur.";
+    }
+    else {
+      document.getElementById('welMsg').innerHTML = "Hello " + usr ;
+    }
+    </script>
     <h1>Outside Temperature</h1>
     <h2 id='city'></h2>
     <h1>Room Temperature</h1>
