@@ -2,7 +2,7 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 #include <DHT_U.h>
-#include "webpage.h"
+#include "Page_Index.h"
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -197,7 +197,8 @@ void setup() {
     Serial.println ( "MDNS responder started" );
   }
   MDNS.addService("http", "tcp", 80);
-  server.on ( "/", handleRoot );
+//  server.on ( "/", handleRoot );
+  server.on ( "/", []() { Serial.println("opened root page"); server.send( 200, "text/html", PAGE_Index ); });
   server.onNotFound (handleNotFound);
   server.on("/json", outputJson);
   server.begin();
@@ -246,17 +247,17 @@ void setup() {
 }
 
 
-void handleRoot() {
-  const int nsize = 3000;
-  char temp[nsize];
-  snprintf ( temp, nsize,
-             "%s\n\
-  </\div></body>\n\
-</html>", webpage::html
-           );
-
-  server.send ( 200, "text/html", temp );
-}
+//void handleRoot() {
+//  const int nsize = 3000;
+//  char temp[nsize];
+//  snprintf ( temp, nsize,
+//             "%s\n\
+//  </\div></body>\n\
+//</html>", index::html
+//           );
+//
+//  server.send ( 200, "text/html", temp );
+//}
 
 
 void loop() {
@@ -273,7 +274,7 @@ void loop() {
   dht.temperature().getEvent(&event);
   if (isnan(event.temperature)) {
     // draw a bitmap icon and 'animate' movement
-    testdrawbitmap(logo16_glcd_bmp, LOGO16_GLCD_HEIGHT, LOGO16_GLCD_WIDTH);
+    // testdrawbitmap(logo16_glcd_bmp, LOGO16_GLCD_HEIGHT, LOGO16_GLCD_WIDTH);
     Serial.println("Error reading temperature!");
   }
   else {
