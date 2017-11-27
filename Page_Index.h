@@ -27,8 +27,6 @@ const char PAGE_Index[] PROGMEM = R"=====(
     window.scrollTo(0, 1);
     fetchData();
     }
-    nurl = document.location.href;
-//    surl = nurl.split("/")[2] + '/json';
     surl = window.location.origin + "/json";
   setInterval(function() {
   fetchData();
