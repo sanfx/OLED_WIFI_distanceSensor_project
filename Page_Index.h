@@ -40,10 +40,10 @@ const char PAGE_Index[] PROGMEM = R"=====(
             console.log(xmlhttp.responseText);
               var obj = JSON.parse(xmlhttp.responseText);
               if (obj.temperature < 70){
-        document.getElementById('temp').innerHTML = parseFloat(Math.round(obj.temperature * 100) / 100).toFixed(2) + '&deg;C';
+        document.getElementById('temp').innerHTML = parseFloat(Math.round(obj.temperature * 100) / 100).toFixed(2) + ' &deg;C';
         document.getElementById('dp').innerHTML = parseFloat(Math.round(obj.dewpoint * 100) / 100).toFixed(1) +' &deg;C';
         document.getElementById('hic').innerHTML = parseFloat(Math.round(obj.heatindex * 100) / 100).toFixed(1) + ' &deg;C';
-        document.getElementById('hum').innerHTML = parseFloat(Math.round(obj.humidity * 100) / 100).toFixed(1) +'%';
+        document.getElementById('hum').innerHTML = parseFloat(Math.round(obj.humidity * 100) / 100).toFixed(1) +' %';
         }
            }
       }
@@ -70,7 +70,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
       document.getElementById('welMsg').innerHTML = "Welcome to Sanjeev, Nitin and Krysto's room in Phillaur.";
     }
     else {
-      document.getElementById('welMsg').innerHTML = "Hello " + usr ;
+      document.getElementById('welMsg').innerHTML = "Hello " + usr + "," ;
     }
     </script>
     <h1>Outside Temperature</h1>

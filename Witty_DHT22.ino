@@ -30,15 +30,27 @@ float hic, pfDew, pfHum, pfTemp, pfVcc;
 
 #define LDR_PIN      A0 // LDR 
 
-//#define DHTPIN D5
+#define DHTOUTPIN D7
+
+
+// http://www.instructables.com/id/How-to-Use-a-Magnetic-Door-Switch-Sensor-With-Ardu/
+int state; // 0 close - 1 open wwitch
+#define DOORSENSE D6
+uint32_t doorOpen;
+
+
 #define DHTPIN 14
-#define DHTTYPE DHT11
+#define DHTTYPE DHT22
 
 DHT_Unified dht(DHTPIN, DHTTYPE);
 DHT dhthi(DHTPIN, DHTTYPE);
 
+DHT_Unified dhtOut(DHTOUTPIN, DHTTYPE);
+
 uint32_t delayMS;
 
+float ot ;
+float oh ;
 float t ;
 float h ;
 
@@ -66,12 +78,18 @@ String createJsonResponse() {
   JsonObject &root = jsonBuffer.createObject();
   JsonArray &tempValues = root.createNestedArray("temperature");
   tempValues.add(t);
+  JsonArray &outtempValues = root.createNestedArray("Outtemperature");
+  outtempValues.add(ot);
+  JsonArray &outhumiValues = root.createNestedArray("Outhumidity");
+  outhumiValues.add(oh);
   JsonArray &humiValues = root.createNestedArray("humidity");
   humiValues.add(h);
   JsonArray &dewpValues = root.createNestedArray("dewpoint");
   dewpValues.add(pfDew);
   JsonArray &heindValues = root.createNestedArray("heatindex");
   heindValues.add(hic);
+  JsonArray &oorSenseValue = root.createNestedArray("doorOpen");
+  oorSenseValue.add(doorOpen);
   JsonArray &EsPvValues = root.createNestedArray("systemv");
   EsPvValues.add(pfVcc / 1000, 3);
 
@@ -88,7 +106,9 @@ void setup() {
   Serial.begin(115200);
   //  pinMode(LED, OUTPUT);
   pinMode (DHTPIN, OUTPUT);
+  pinMode (DHTOUTPIN, OUTPUT);
   pinMode(LDR_PIN, INPUT);
+  pinMode(DOORSENSE, INPUT_PULLUP);
 
   // inital connect
   //  WiFi.mode(WIFI_STA);
@@ -124,7 +144,10 @@ void setup() {
   }
   MDNS.addService("http", "tcp", 80);
   MDNS.addService("ssh", "tcp", 22);
-  server.on ( "/", []() { Serial.println("opened root page"); server.send( 200, "text/html", PAGE_Index ); });
+  server.on ( "/", []() {
+    Serial.println("opened root page");
+    server.send( 200, "text/html", PAGE_Index );
+  });
   server.onNotFound (handleNotFound);
   server.on("/json", outputJson);
   server.begin();
@@ -134,6 +157,8 @@ void setup() {
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
   dht.humidity().getSensor(&sensor);
+  sensor_t sensor2;
+  dhtOut.temperature().getSensor(&sensor2);
 }
 
 
@@ -180,6 +205,29 @@ void loop() {
     Serial.println("%");
   }
 
+  sensors_event_t event2;
+  dhtOut.temperature().getEvent(&event2);
+  if (isnan(event2.temperature)) {
+    Serial.println("Error reading Outside temperature!");
+  }
+  else {
+    Serial.print("Outside Temperature: ");
+    ot = event2.temperature;
+    Serial.print(ot);
+    Serial.println(" *C");
+  }
+
+  dhtOut.humidity().getEvent(&event2);
+  if (isnan(event2.relative_humidity)) {
+    Serial.println("Error reading outdoor humidity!");
+  }
+  else {
+    Serial.print("Outdoor Humidity: ");
+    oh = event2.relative_humidity;
+    Serial.print(oh);
+    Serial.println("%");
+  }
+
   float a = 17.67;
   float b = 243.5;
   float alpha = (a * t) / (b + t) + log(h / 100);
@@ -187,6 +235,17 @@ void loop() {
   // Compute heat index in Celsius (isFahreheit = false)
   hic = dhthi.computeHeatIndex(t, h, false);
   Serial.println(analogRead(LDR_PIN));
+
+  state = digitalRead(DOORSENSE);
+
+  if (state == HIGH) {
+    doorOpen = 1 ;
+  }
+  else {
+    doorOpen = 0 ;
+  }
+
+
   server.handleClient();
 
 
