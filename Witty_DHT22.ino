@@ -8,7 +8,7 @@
 #include <ESP8266mDNS.h>
 #include <Wire.h>
 
-const char* host = "wittycloud";
+const char* host = "nitin";
 
 // needed to avoid link error on ram check
 // include is a plain C, not C++
@@ -237,7 +237,8 @@ void loop() {
   Serial.println(analogRead(LDR_PIN));
 
   state = digitalRead(DOORSENSE);
-
+  Serial.print("Door Status: ");
+  Serial.println(state);
   if (state == HIGH) {
     doorOpen = 1 ;
   }

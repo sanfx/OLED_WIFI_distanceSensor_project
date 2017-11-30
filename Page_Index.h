@@ -40,10 +40,12 @@ const char PAGE_Index[] PROGMEM = R"=====(
             console.log(xmlhttp.responseText);
               var obj = JSON.parse(xmlhttp.responseText);
               if (obj.temperature < 70){
+//        var x = (false)?("1true"):((true)?"2true":"2false");
         document.getElementById('temp').innerHTML = parseFloat(Math.round(obj.temperature * 100) / 100).toFixed(2) + ' &deg;C';
         document.getElementById('dp').innerHTML = parseFloat(Math.round(obj.dewpoint * 100) / 100).toFixed(1) +' &deg;C';
         document.getElementById('hic').innerHTML = parseFloat(Math.round(obj.heatindex * 100) / 100).toFixed(1) + ' &deg;C';
         document.getElementById('hum').innerHTML = parseFloat(Math.round(obj.humidity * 100) / 100).toFixed(1) +' %';
+        document.getElementById('doormsg').innerHTML =  obj.doorOpen == 1 ? "Door is open." :  "";
         }
            }
       }
@@ -83,6 +85,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
     <h2 id='hic'></h2>
     <h1>Humidity</h1>
     <h2 id='hum'></h2>
+    <p id='doormsg'></p>
     </\div>
     </body>
 </html>
