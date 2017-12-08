@@ -35,8 +35,8 @@ float hic, pfDew, pfHum, pfTemp, pfVcc;
 
 // http://www.instructables.com/id/How-to-Use-a-Magnetic-Door-Switch-Sensor-With-Ardu/
 int state; // 0 close - 1 open wwitch
-#define DOORSENSE D6
-uint32_t doorOpen;
+#define DOORSENSE D8
+uint8_t doorOpen;
 
 
 #define DHTPIN 14
@@ -47,13 +47,12 @@ DHT dhthi(DHTPIN, DHTTYPE);
 
 DHT_Unified dhtOut(DHTOUTPIN, DHTTYPE);
 
-uint32_t delayMS;
+uint8_t delayMS;
 
 float ot ;
 float oh ;
 float t ;
 float h ;
-
 
 void handleNotFound() {
   String message = "File Not Found\n\n";
@@ -71,10 +70,8 @@ void handleNotFound() {
   server.send ( 404, "text/plain", message );
 }
 
-
 String createJsonResponse() {
   StaticJsonBuffer<500> jsonBuffer;
-
   JsonObject &root = jsonBuffer.createObject();
   JsonArray &tempValues = root.createNestedArray("temperature");
   tempValues.add(t);
@@ -88,8 +85,8 @@ String createJsonResponse() {
   dewpValues.add(pfDew);
   JsonArray &heindValues = root.createNestedArray("heatindex");
   heindValues.add(hic);
-  JsonArray &oorSenseValue = root.createNestedArray("doorOpen");
-  oorSenseValue.add(doorOpen);
+  JsonArray &doorSenseValue = root.createNestedArray("doorOpen");
+  doorSenseValue.add(doorOpen);
   JsonArray &EsPvValues = root.createNestedArray("systemv");
   EsPvValues.add(pfVcc / 1000, 3);
 
@@ -104,15 +101,12 @@ void outputJson() {
 
 void setup() {
   Serial.begin(115200);
-  //  pinMode(LED, OUTPUT);
+
   pinMode (DHTPIN, OUTPUT);
   pinMode (DHTOUTPIN, OUTPUT);
   pinMode(LDR_PIN, INPUT);
   pinMode(DOORSENSE, INPUT_PULLUP);
 
-  // inital connect
-  //  WiFi.mode(WIFI_STA);
-  //  delay(1000);
   // config static IP
   IPAddress myIp(192, 168, 1, 89);
   IPAddress gateway(192, 168, 1, 1);
@@ -143,7 +137,7 @@ void setup() {
     Serial.println ( "MDNS responder started" );
   }
   MDNS.addService("http", "tcp", 80);
-  MDNS.addService("ssh", "tcp", 22);
+
   server.on ( "/", []() {
     Serial.println("opened root page");
     server.send( 200, "text/html", PAGE_Index );
@@ -161,26 +155,11 @@ void setup() {
   dhtOut.temperature().getSensor(&sensor2);
 }
 
-
-//void handleRoot() {
-//  const int nsize = 3000;
-//  char temp[nsize];
-//  snprintf ( temp, nsize,
-//             "%s\n\
-//  </\div></body>\n\
-//</html>", index::html
-//           );
-//
-//  server.send ( 200, "text/html", temp );
-//}
-
-
 void loop() {
   pfVcc = ESP.getVcc();
 
   // Delay between measurements.
   delay(delayMS);
-  //  digitalWrite(LED, HIGH);
   // Get temperature event and print its value.
   sensors_event_t event;
   dht.temperature().getEvent(&event);
@@ -245,10 +224,6 @@ void loop() {
   else {
     doorOpen = 0 ;
   }
-
-
   server.handleClient();
-
-
 }
 

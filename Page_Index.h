@@ -19,7 +19,8 @@ const char PAGE_Index[] PROGMEM = R"=====(
     <script type='text/javascript'>
         wuri='http://dataservice.accuweather.com/currentconditions/v1/2956111?apikey=4mMBpfdcAAmaMFXtwPvYK9qS9Wzq0md9';
         $.getJSON(wuri, function (json) {
-           document.getElementById('city').innerHTML = json[0].Temperature.Metric.Value +' &deg;C' 
+         //  Disabled as we have sensor plugged in.
+           // document.getElementById('city').innerHTML = json[0].Temperature.Metric.Value +' &deg;C' 
           });
     </script>
     <script type='text/javascript'>
@@ -41,11 +42,19 @@ const char PAGE_Index[] PROGMEM = R"=====(
               var obj = JSON.parse(xmlhttp.responseText);
               if (obj.temperature < 70){
 //        var x = (false)?("1true"):((true)?"2true":"2false");
+        out = document.getElementById('city')
+        out.innerHTML =  parseFloat(Math.round(obj.Outtemperature * 100) / 100).toFixed(2) + ' &deg;C';
         document.getElementById('temp').innerHTML = parseFloat(Math.round(obj.temperature * 100) / 100).toFixed(2) + ' &deg;C';
         document.getElementById('dp').innerHTML = parseFloat(Math.round(obj.dewpoint * 100) / 100).toFixed(1) +' &deg;C';
         document.getElementById('hic').innerHTML = parseFloat(Math.round(obj.heatindex * 100) / 100).toFixed(1) + ' &deg;C';
         document.getElementById('hum').innerHTML = parseFloat(Math.round(obj.humidity * 100) / 100).toFixed(1) +' %';
         document.getElementById('doormsg').innerHTML =  obj.doorOpen == 1 ? "Door is open." :  "";
+        tempf = (obj.Outtemperature * 1.8)+32;
+        wupUrl = "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=IPHILLAU2&PASSWORD=9ocfq6ge&dateutc=2000-01-01+10%3A32%3A35&tempf="+tempf+"&humidity=90&action=updateraw&realtime=1&rtfreq=2.5"
+         $.getJSON(wupUrl, function (json) {
+         //  Disabled as we have sensor plugged in.
+           // document.getElementById('city').innerHTML = json[0].Temperature.Metric.Value +' &deg;C' 
+          });
         }
            }
       }
@@ -77,6 +86,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
     </script>
     <h1>Outside Temperature</h1>
     <h2 id='city'></h2>
+    <!--p id='outSens'></p-->
     <h1>Room Temperature</h1>
     <h2 id='temp'></h2>
     <h1>Dewpoint</h1>
